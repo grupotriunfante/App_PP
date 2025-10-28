@@ -1,8 +1,10 @@
 // =================================================================
-// !!! IMPORTANTE: COLE A URL DA SUA API DO APPS SCRIPT AQUI !!!
+// !!! COLE A URL DA SUA API DO APPS SCRIPT AQUI !!!
 const API_URL = "https://script.google.com/macros/s/AKfycbwBodD9gkfmLM3_nSP_MuZxKnDp0vNXDRV-yjeA7mJqIYybyhW2TOBxvkT5_gStrUM7Vw/exec";
 // =================================================================
 
+// Variável global para armazenar os dados do usuário
+let currentUserData = null;
 
 /**
  * Função principal que é executada quando o DOM está pronto.
@@ -10,74 +12,154 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwBodD9gkfmLM3_nSP_MuZx
 document.addEventListener("DOMContentLoaded", () => {
     
     // --- 1. VERIFICAÇÃO DE AUTENTICAÇÃO ---
-    // Esta é a parte mais importante.
-    // Buscamos os dados do usuário que salvamos no localStorage na tela de login.
-    const userData = JSON.parse(localStorage.getItem("userData"));
-
-    // Se NÃO houver dados, o usuário não está logado.
-    if (!userData) {
-        // Redireciona de volta para a tela de login.
+    currentUserData = JSON.parse(localStorage.getItem("userData"));
+    if (!currentUserData) {
         alert("Acesso negado. Por favor, faça o login.");
         window.location.href = "index.html"; 
-        return; // Para a execução do script
+        return;
     }
 
-    // --- 2. SE O USUÁRIO ESTÁ LOGADO ---
-    
-    // Exibe as informações do usuário no cabeçalho
+    // --- 2. INICIALIZA O DASHBOARD ---
+    setupHeader();
+    setupMenuListeners();
+});
+
+/**
+ * Configura o cabeçalho com informações do usuário e botão Sair.
+ */
+function setupHeader() {
     const userInfoDiv = document.getElementById("user-info");
     userInfoDiv.innerHTML = `
-        <span>Olá, <strong>${userData.NomeCompleto}</strong> (${userData.Unidade})</span>
+        <span>Olá, <strong>${currentUserData.NomeCompleto}</strong> (${currentUserData.Unidade})</span>
         <button id="logout-button">Sair</button>
     `;
 
-    // Adiciona o evento de clique ao botão "Sair"
     document.getElementById("logout-button").addEventListener("click", () => {
-        // Limpa os dados do usuário do navegador
         localStorage.removeItem("userData");
-        // Redireciona para o login
         alert("Você saiu do sistema.");
         window.location.href = "index.html";
     });
+}
 
-
-    // --- 3. ADICIONA EVENTOS AOS LINKS DO MENU ---
+/**
+ * Adiciona os "escutadores" de clique aos links do menu.
+ */
+function setupMenuListeners() {
     const menuLinks = document.querySelectorAll(".menu-link");
-    const mainContent = document.getElementById("main-content");
-
     menuLinks.forEach(link => {
         link.addEventListener("click", (event) => {
-            event.preventDefault(); // Impede que o link recarregue a página
-            
+            event.preventDefault();
             const area = event.target.getAttribute("data-area");
-            
-            // Chama a função para carregar o checklist
-            loadChecklist(area);
+            loadChecklist(area); // Chama a nova função
+        });
+    });
+}
+
+/**
+ * Função para carregar o checklist da API.
+ * @param {string} area - O nome da área (ex: "Recebimento")
+ */
+function loadChecklist(area) {
+    const mainContent = document.getElementById("main-content");
+    mainContent.innerHTML = `<h2>Carregando Checklist: ${area}...</h2>`;
+
+    // Chama a API usando GET
+    fetch(`${API_URL}?action=getChecklist&area=${area}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Sucesso! Chama a função para construir o formulário
+                buildChecklistForm(data.area, data.itens);
+            } else {
+                // Erro vindo da API
+                mainContent.innerHTML = `<p style="color:red;">Erro ao carregar checklist: ${data.error}</p>`;
+            }
+        })
+        .catch(error => {
+            // Erro de rede/conexão
+            console.error("Erro no fetch:", error);
+            mainContent.innerHTML = `<p style="color:red;">Erro de conexão com a API.</p>`;
+        });
+}
+
+/**
+ * Constrói o HTML do formulário de checklist dinamicamente.
+ * @param {string} area - O nome da área.
+ * @param {Array} itens - A lista de itens vinda da API.
+ */
+function buildChecklistForm(area, itens) {
+    const mainContent = document.getElementById("main-content");
+    
+    if (itens.length === 0) {
+        mainContent.innerHTML = `<h2>${area}</h2><p>Nenhum item de checklist cadastrado para esta área.</p>`;
+        return;
+    }
+
+    // Começa a construir o HTML do formulário
+    let formHTML = `
+        <h2>Auditoria: ${area}</h2>
+        <form id="checklist-form">
+            <input type="hidden" name="area" value="${area}">
+    `;
+
+    // Cria um item do formulário para cada item do checklist
+    itens.forEach(item => {
+        formHTML += `
+            <div class="checklist-item">
+                <label>${item.descricao} (ID: ${item.id})</label>
+                
+                <div class="resposta-group">
+                    <input type="radio" name="${item.id}" value="C" required> C
+                    <input type="radio" name="${item.id}" value="NC"> NC
+                    <input type="radio" name="${item.id}" value="NA"> NA
+                </div>
+
+                <div class="nc-campos" id="nc-campos-${item.id}" style="display:none;">
+                    <textarea name="obs-${item.id}" placeholder="Observação obrigatória"></textarea>
+                    <input type="file" name="anexo-${item.id}" accept="image/*">
+                </div>
+            </div>
+        `;
+    });
+
+    formHTML += `
+            <button type="submit" id="submit-checklist">Enviar Auditoria</button>
+        </form>
+    `;
+
+    mainContent.innerHTML = formHTML;
+
+    // Adiciona os eventos (lógica) ao formulário que acabamos de criar
+    addFormLogic();
+}
+
+/**
+ * Adiciona a lógica de JavaScript ao formulário (mostrar/esconder campos NC).
+ */
+function addFormLogic() {
+    const form = document.getElementById("checklist-form");
+
+    // Adiciona "escutadores" para os botões de rádio (C/NC/NA)
+    const radios = form.querySelectorAll('input[type="radio"]');
+    radios.forEach(radio => {
+        radio.addEventListener("change", (event) => {
+            const itemName = event.target.name; // Ex: "REC-01"
+            const itemValue = event.target.value; // Ex: "NC"
+            const ncCampos = document.getElementById(`nc-campos-${itemName}`);
+
+            if (itemValue === "NC") {
+                ncCampos.style.display = "block"; // Mostra os campos de Obs/Anexo
+            } else {
+                ncCampos.style.display = "none"; // Esconde
+            }
         });
     });
 
-    /**
-     * Função para carregar o checklist (POR ENQUANTO, APENAS UM TESTE)
-     * Na próxima fase, esta função fará um fetch() para a API.
-     * @param {string} area - O nome da área (ex: "Recebimento")
-     */
-    function loadChecklist(area) {
-        mainContent.innerHTML = `
-            <h2>Carregando Checklist: ${area}</h2>
-            <p>Aguarde...</p>
-            <p>(Na próxima fase, o formulário real aparecerá aqui.)</p>
-        `;
-        
-        // --- PRÉVIA DA PRÓXIMA FASE ---
-        // Na próxima fase, faremos o código abaixo:
-        // 
-        // fetch(API_URL + "?action=getChecklist&area=" + area)
-        //   .then(response => response.json())
-        //   .then(data => {
-        //       if(data.success) {
-        //           buildChecklistForm(data.itens);
-        //       }
-        //   });
-    }
-
-});
+    // Adiciona o "escutador" para o envio do formulário
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        // Na próxima fase, aqui faremos o código para ENVIAR os dados para a API
+        alert("Formulário pronto para enviar! (Próxima fase)");
+        console.log(new FormData(form)); // Mostra os dados no console
+    });
+}
