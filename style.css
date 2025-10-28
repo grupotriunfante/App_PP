@@ -82,3 +82,103 @@ button:disabled {
 .loading {
     color: #555;
 }
+/* ==================================
+   ESTILOS DO DASHBOARD
+   ================================== */
+
+.main-header {
+    background-color: #333;
+    color: white;
+    padding: 0.5rem 2rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header-content h2 {
+    color: white;
+    margin: 0.5rem 0;
+}
+
+#user-info {
+    font-size: 0.9rem;
+}
+
+#user-info span {
+    margin-right: 1rem;
+}
+
+#logout-button {
+    background-color: #d9534f;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+#logout-button:hover {
+    background-color: #c9302c;
+}
+
+.main-container {
+    display: flex;
+    max-width: 1200px;
+    margin: 1.5rem auto;
+    background-color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    min-height: 70vh;
+}
+
+#sidebar-menu {
+    width: 250px;
+    background-color: #f9f9f9;
+    border-right: 1px solid #ddd;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+#sidebar-menu h3 {
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+}
+
+#sidebar-menu ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#sidebar-menu li a {
+    display: block;
+    padding: 0.75rem 0.5rem;
+    color: #555;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+#sidebar-menu li a:hover {
+    background-color: #e9ecef;
+    color: #0056b3;
+}
+
+#main-content {
+    flex-grow: 1; /* Ocupa o espaço restante */
+    padding: 1.5rem;
+}
+
+#main-content h1, #main-content h2 {
+    margin-top: 0;
+    color: #333;
+}
