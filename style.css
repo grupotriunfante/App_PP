@@ -182,3 +182,61 @@ button:disabled {
     margin-top: 0;
     color: #333;
 }
+/* ==================================
+   ESTILOS DO CHECKLIST
+   ================================== */
+
+#checklist-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem; /* Espaço entre os itens */
+}
+
+.checklist-item {
+    background-color: #fdfdfd;
+    border: 1px solid #eee;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.checklist-item label {
+    font-weight: bold;
+    color: #333;
+    display: block;
+    margin-bottom: 0.75rem;
+}
+
+.resposta-group {
+    display: flex;
+    gap: 1.5rem; /* Espaço entre os botões C/NC/NA */
+    margin-bottom: 1rem;
+}
+
+.resposta-group input {
+    margin-right: 0.25rem;
+}
+
+.nc-campos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border-top: 1px dashed #ccc;
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.nc-campos textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.nc-campos input[type="file"] {
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
