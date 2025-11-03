@@ -62,7 +62,7 @@ function loadChecklist(area) {
 
 /**
  * Constrói o HTML do formulário de checklist dinamicamente.
- * VERSÃO 3: Com campos de anexo personalizados
+ * VERSÃO 4: Separa OBS (só NC) de ANEXOS (C ou NC)
  */
 function buildChecklistForm(area, itens) {
     const mainContent = document.getElementById("main-content");
@@ -90,11 +90,12 @@ function buildChecklistForm(area, itens) {
                     <input type="radio" name="${item.id}" value="NA"> NA
                 </div>
 
-                <div class="nc-campos" id="nc-campos-${item.id}" style="display:none;">
+                <div class="obs-campo" id="obs-campo-${item.id}" style="display:none;">
                     <textarea name="obs-${item.id}" placeholder="Observação obrigatória"></textarea>
-                    
+                </div>
+
+                <div class="anexo-campos" id="anexo-campos-${item.id}" style="display:none;">
                     ${ buildAnexoFields(item.id, item.anexoCampos) }
-                    
                 </div>
             </div>
         `;
@@ -106,7 +107,7 @@ function buildChecklistForm(area, itens) {
     `;
 
     mainContent.innerHTML = formHTML;
-    addFormLogic();
+    addFormLogic(); // Adiciona os eventos (lógica) ao formulário
 }
 
 /**
@@ -115,7 +116,6 @@ function buildChecklistForm(area, itens) {
 function buildAnexoFields(itemID, anexoCampos) {
     let anexoHTML = "";
     
-    // Se anexoCampos (ex: "Foto 1;Foto 2") foi definido na planilha...
     if (anexoCampos) {
         const labels = anexoCampos.split(';');
         labels.forEach((label, index) => {
@@ -125,7 +125,6 @@ function buildAnexoFields(itemID, anexoCampos) {
             `;
         });
     } else {
-        // Senão, mostra o campo genérico de evidência
         anexoHTML += `
             <label class="anexo-label">Anexar evidência (Opcional):</label>
             <input type="file" name="anexo-${itemID}-0" data-label="Evidencia" accept="image/*">
@@ -135,7 +134,8 @@ function buildAnexoFields(itemID, anexoCampos) {
 }
 
 /**
- * Adiciona a lógica de JavaScript ao formulário (mostrar/esconder campos NC).
+ * Adiciona a lógica de JavaScript ao formulário (mostrar/esconder campos).
+ * VERSÃO 4: Lógica de exibição atualizada
  */
 function addFormLogic() {
     const form = document.getElementById("checklist-form");
@@ -143,14 +143,25 @@ function addFormLogic() {
     const radios = form.querySelectorAll('input[type="radio"]');
     radios.forEach(radio => {
         radio.addEventListener("change", (event) => {
-            const itemName = event.target.name;
-            const itemValue = event.target.value;
-            const ncCampos = document.getElementById(`nc-campos-${itemName}`);
+            const itemName = event.target.name; // Ex: "REC-01"
+            const itemValue = event.target.value; // Ex: "C", "NC" ou "NA"
+            
+            // Pega os dois containers separados
+            const obsCampo = document.getElementById(`obs-campo-${itemName}`);
+            const anexoCampos = document.getElementById(`anexo-campos-${itemName}`);
 
+            // Lógica da Observação: SÓ para NC
             if (itemValue === "NC") {
-                ncCampos.style.display = "block"; // Mostra os campos de Obs/Anexo
+                obsCampo.style.display = "block";
             } else {
-                ncCampos.style.display = "none"; // Esconde
+                obsCampo.style.display = "none";
+            }
+            
+            // Lógica dos Anexos: para C ou NC
+            if (itemValue === "C" || itemValue === "NC") {
+                anexoCampos.style.display = "block";
+            } else {
+                anexoCampos.style.display = "none";
             }
         });
     });
@@ -158,9 +169,9 @@ function addFormLogic() {
     form.addEventListener("submit", handleSubmit);
 }
 
+
 /**
  * Função principal que lida com o ENVIO do formulário.
- * VERSÃO 3: Lida com múltiplos anexos
  */
 async function handleSubmit(event) {
     event.preventDefault();
@@ -194,7 +205,6 @@ async function handleSubmit(event) {
                 throw new Error(`O item ${radioName} está NC, mas a observação está vazia.`);
             }
 
-            // *** LÓGICA DE COLETA DE ANEXOS ALTERADA ***
             let anexos = [];
             const fileInputs = itemElement.querySelectorAll('input[type="file"]');
             
@@ -203,14 +213,13 @@ async function handleSubmit(event) {
                 const label = fileInput.getAttribute('data-label');
 
                 if (file) {
-                    // Adiciona a "promessa" de ler o arquivo na lista
                     fileReadPromises.push(
                         readFileAsBase64(file).then(base64String => {
-                            anexos.push({ // Adiciona na lista de anexos
+                            anexos.push({
                                 nome: file.name,
                                 tipo: file.type,
                                 dadosBase64: base64String,
-                                label: label // Envia o label (ex: "Foto dos produtos")
+                                label: label
                             });
                         })
                     );
@@ -221,14 +230,12 @@ async function handleSubmit(event) {
                 id: radioName,
                 resposta: resposta,
                 obs: obs,
-                anexos: anexos // Envia a lista de anexos
+                anexos: anexos
             });
         }
 
-        // --- 2. Espera todos os arquivos serem lidos ---
         await Promise.all(fileReadPromises);
 
-        // --- 3. Monta o Payload final ---
         const payload = {
             action: "submitChecklist",
             data: {
@@ -239,7 +246,6 @@ async function handleSubmit(event) {
             }
         };
 
-        // --- 4. Envia para a API ---
         const response = await fetch(API_URL, {
             method: "POST",
             mode: "cors",
@@ -251,7 +257,6 @@ async function handleSubmit(event) {
 
         const data = await response.json();
 
-        // --- 5. Processa a Resposta ---
         if (data.success) {
             showMessage("Auditoria enviada com sucesso!", "success", messageArea);
             setTimeout(() => { loadChecklist(area); }, 2000);
@@ -267,9 +272,6 @@ async function handleSubmit(event) {
     }
 }
 
-/**
- * Função utilitária para ler um arquivo e retornar uma Promise com o Base64.
- */
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -279,14 +281,8 @@ function readFileAsBase64(file) {
     });
 }
 
-/**
- * Função para mostrar mensagens no formulário
- */
 function showMessage(message, type, area = document.getElementById("form-message-area")) {
     if (!area) return;
     area.textContent = message;
-    area.className = type; 
-    
-    // Adicione classes CSS para .success, .error, .loading no seu style.css
-    // Ex: .error { color: red; } .success { color: green; }
+    area.className = type;
 }
