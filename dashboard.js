@@ -6,34 +6,23 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwBodD9gkfmLM3_nSP_MuZx
 // Variável global para armazenar os dados do usuário
 let currentUserData = null;
 
-/**
- * Função principal que é executada quando o DOM está pronto.
- */
 document.addEventListener("DOMContentLoaded", () => {
-    
-    // --- 1. VERIFICAÇÃO DE AUTENTICAÇÃO ---
     currentUserData = JSON.parse(localStorage.getItem("userData"));
     if (!currentUserData) {
         alert("Acesso negado. Por favor, faça o login.");
         window.location.href = "index.html"; 
         return;
     }
-
-    // --- 2. INICIALIZA O DASHBOARD ---
     setupHeader();
     setupMenuListeners();
 });
 
-/**
- * Configura o cabeçalho com informações do usuário e botão Sair.
- */
 function setupHeader() {
     const userInfoDiv = document.getElementById("user-info");
     userInfoDiv.innerHTML = `
         <span>Olá, <strong>${currentUserData.NomeCompleto}</strong> (${currentUserData.Unidade})</span>
         <button id="logout-button">Sair</button>
     `;
-
     document.getElementById("logout-button").addEventListener("click", () => {
         localStorage.removeItem("userData");
         alert("Você saiu do sistema.");
@@ -41,9 +30,6 @@ function setupHeader() {
     });
 }
 
-/**
- * Adiciona os "escutadores" de clique aos links do menu.
- */
 function setupMenuListeners() {
     const menuLinks = document.querySelectorAll(".menu-link");
     menuLinks.forEach(link => {
@@ -55,10 +41,6 @@ function setupMenuListeners() {
     });
 }
 
-/**
- * Função para carregar o checklist da API.
- * @param {string} area - O nome da área (ex: "Recebimento")
- */
 function loadChecklist(area) {
     const mainContent = document.getElementById("main-content");
     mainContent.innerHTML = `<h2>Carregando Checklist: ${area}...</h2>`;
@@ -80,8 +62,7 @@ function loadChecklist(area) {
 
 /**
  * Constrói o HTML do formulário de checklist dinamicamente.
- * @param {string} area - O nome da área.
- * @param {Array} itens - A lista de itens vinda da API.
+ * VERSÃO 3: Com campos de anexo personalizados
  */
 function buildChecklistForm(area, itens) {
     const mainContent = document.getElementById("main-content");
@@ -111,7 +92,9 @@ function buildChecklistForm(area, itens) {
 
                 <div class="nc-campos" id="nc-campos-${item.id}" style="display:none;">
                     <textarea name="obs-${item.id}" placeholder="Observação obrigatória"></textarea>
-                    <input type="file" name="anexo-${item.id}" accept="image/*,.pdf">
+                    
+                    ${ buildAnexoFields(item.id, item.anexoCampos) }
+                    
                 </div>
             </div>
         `;
@@ -123,7 +106,32 @@ function buildChecklistForm(area, itens) {
     `;
 
     mainContent.innerHTML = formHTML;
-    addFormLogic(); // Adiciona os eventos (lógica) ao formulário
+    addFormLogic();
+}
+
+/**
+ * Helper: Constrói os campos de input[type=file]
+ */
+function buildAnexoFields(itemID, anexoCampos) {
+    let anexoHTML = "";
+    
+    // Se anexoCampos (ex: "Foto 1;Foto 2") foi definido na planilha...
+    if (anexoCampos) {
+        const labels = anexoCampos.split(';');
+        labels.forEach((label, index) => {
+            anexoHTML += `
+                <label class="anexo-label">${label}:</label>
+                <input type="file" name="anexo-${itemID}-${index}" data-label="${label}" accept="image/*">
+            `;
+        });
+    } else {
+        // Senão, mostra o campo genérico de evidência
+        anexoHTML += `
+            <label class="anexo-label">Anexar evidência (Opcional):</label>
+            <input type="file" name="anexo-${itemID}-0" data-label="Evidencia" accept="image/*">
+        `;
+    }
+    return anexoHTML;
 }
 
 /**
@@ -132,32 +140,30 @@ function buildChecklistForm(area, itens) {
 function addFormLogic() {
     const form = document.getElementById("checklist-form");
 
-    // 1. Lógica para mostrar/esconder campos NC
     const radios = form.querySelectorAll('input[type="radio"]');
     radios.forEach(radio => {
         radio.addEventListener("change", (event) => {
             const itemName = event.target.name;
             const itemValue = event.target.value;
             const ncCampos = document.getElementById(`nc-campos-${itemName}`);
-            
+
             if (itemValue === "NC") {
-                ncCampos.style.display = "block";
+                ncCampos.style.display = "block"; // Mostra os campos de Obs/Anexo
             } else {
-                ncCampos.style.display = "none";
+                ncCampos.style.display = "none"; // Esconde
             }
         });
     });
 
-    // 2. Lógica de envio do formulário
-    form.addEventListener("submit", handleSubmit); // Chama a nova função de envio
+    form.addEventListener("submit", handleSubmit);
 }
 
 /**
  * Função principal que lida com o ENVIO do formulário.
- * Usamos 'async' para poder esperar (await) os arquivos de imagem carregarem.
+ * VERSÃO 3: Lida com múltiplos anexos
  */
 async function handleSubmit(event) {
-    event.preventDefault(); // Impede o recarregamento da página
+    event.preventDefault();
     
     const submitButton = document.getElementById("submit-checklist");
     const messageArea = document.getElementById("form-message-area");
@@ -171,53 +177,55 @@ async function handleSubmit(event) {
         const itens = document.querySelectorAll(".checklist-item");
         
         let respostas = [];
-        let fileReadPromises = []; // Lista de promessas de leitura de arquivo
+        let fileReadPromises = [];
 
-        // --- 1. Validação e Coleta de Dados ---
         for (const itemElement of itens) {
             const radioName = itemElement.querySelector('input[type="radio"]').name;
             const checkedRadio = itemElement.querySelector('input[type="radio"]:checked');
             
-            // Validação: Todos os itens devem ser respondidos
             if (!checkedRadio) {
                 throw new Error(`O item ${radioName} não foi respondido.`);
             }
             
             const resposta = checkedRadio.value;
             const obs = itemElement.querySelector('textarea').value;
-            const fileInput = itemElement.querySelector('input[type="file"]');
-            const file = fileInput.files[0];
-
-            // Validação: Se for NC, a observação é obrigatória
+            
             if (resposta === "NC" && !obs) {
                 throw new Error(`O item ${radioName} está NC, mas a observação está vazia.`);
             }
 
-            let respostaItem = {
+            // *** LÓGICA DE COLETA DE ANEXOS ALTERADA ***
+            let anexos = [];
+            const fileInputs = itemElement.querySelectorAll('input[type="file"]');
+            
+            fileInputs.forEach(fileInput => {
+                const file = fileInput.files[0];
+                const label = fileInput.getAttribute('data-label');
+
+                if (file) {
+                    // Adiciona a "promessa" de ler o arquivo na lista
+                    fileReadPromises.push(
+                        readFileAsBase64(file).then(base64String => {
+                            anexos.push({ // Adiciona na lista de anexos
+                                nome: file.name,
+                                tipo: file.type,
+                                dadosBase64: base64String,
+                                label: label // Envia o label (ex: "Foto dos produtos")
+                            });
+                        })
+                    );
+                }
+            });
+
+            respostas.push({
                 id: radioName,
                 resposta: resposta,
                 obs: obs,
-                anexo: null
-            };
-
-            // Se tiver um arquivo, prepara a leitura dele
-            if (file && resposta === "NC") {
-                // Adiciona a "promessa" de ler o arquivo na lista
-                fileReadPromises.push(
-                    readFileAsBase64(file).then(base64String => {
-                        respostaItem.anexo = {
-                            nome: file.name,
-                            tipo: file.type,
-                            dadosBase64: base64String
-                        };
-                    })
-                );
-            }
-            respostas.push(respostaItem);
+                anexos: anexos // Envia a lista de anexos
+            });
         }
 
         // --- 2. Espera todos os arquivos serem lidos ---
-        // (Isso é rápido se não houver arquivos)
         await Promise.all(fileReadPromises);
 
         // --- 3. Monta o Payload final ---
@@ -225,8 +233,8 @@ async function handleSubmit(event) {
             action: "submitChecklist",
             data: {
                 area: area,
-                userLogin: currentUserData.Login, // "Login" veio da nossa planilha USUARIOS
-                unidade: currentUserData.Unidade, // "Unidade" veio da nossa planilha
+                userLogin: currentUserData.Login,
+                unidade: currentUserData.Unidade,
                 respostas: respostas
             }
         };
@@ -236,9 +244,7 @@ async function handleSubmit(event) {
             method: "POST",
             mode: "cors",
             cache: "no-cache",
-            headers: {
-                "Content-Type": "text/plain;charset=utf-8",
-            },
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify(payload),
             redirect: "follow"
         });
@@ -248,16 +254,12 @@ async function handleSubmit(event) {
         // --- 5. Processa a Resposta ---
         if (data.success) {
             showMessage("Auditoria enviada com sucesso!", "success", messageArea);
-            // Recarrega o checklist em branco
-            setTimeout(() => {
-                loadChecklist(area); 
-            }, 2000);
+            setTimeout(() => { loadChecklist(area); }, 2000);
         } else {
             throw new Error(data.error || "Erro desconhecido da API.");
         }
 
     } catch (error) {
-        // Pega qualquer erro (validação, rede, API)
         console.error("Erro ao enviar:", error);
         showMessage(error.message, "error", messageArea);
         submitButton.disabled = false;
@@ -267,19 +269,13 @@ async function handleSubmit(event) {
 
 /**
  * Função utilitária para ler um arquivo e retornar uma Promise com o Base64.
- * @param {File} file - O arquivo do input
- * @returns {Promise<string>} O string de dados em Base64
  */
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (event) => {
-            resolve(event.target.result); // Retorna o 'data:image/png;base64,....'
-        };
-        reader.onerror = (error) => {
-            reject(error);
-        };
-        reader.readAsDataURL(file); // Inicia a leitura
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
     });
 }
 
@@ -289,10 +285,8 @@ function readFileAsBase64(file) {
 function showMessage(message, type, area = document.getElementById("form-message-area")) {
     if (!area) return;
     area.textContent = message;
-    area.className = type; // Aplica a classe CSS (error, success, loading)
+    area.className = type; 
     
-    // Adicione classes de estilo ao seu style.css se quiser cores
-    // .error { color: red; }
-    // .success { color: green; }
-    // .loading { color: gray; }
+    // Adicione classes CSS para .success, .error, .loading no seu style.css
+    // Ex: .error { color: red; } .success { color: green; }
 }
