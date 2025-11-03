@@ -79,6 +79,7 @@ function buildChecklistForm(area, itens) {
             <div id="form-message-area"></div>
     `;
 
+    // *** HTML ALTERADO ***
     itens.forEach(item => {
         formHTML += `
             <div class="checklist-item" id="item-${item.id}">
@@ -100,6 +101,7 @@ function buildChecklistForm(area, itens) {
             </div>
         `;
     });
+    // *** FIM DA ALTERAÇÃO ***
 
     formHTML += `
             <button type="submit" id="submit-checklist">Enviar Auditoria</button>
@@ -141,6 +143,8 @@ function addFormLogic() {
     const form = document.getElementById("checklist-form");
 
     const radios = form.querySelectorAll('input[type="radio"]');
+    
+    // *** LÓGICA ALTERADA ***
     radios.forEach(radio => {
         radio.addEventListener("change", (event) => {
             const itemName = event.target.name; // Ex: "REC-01"
@@ -165,6 +169,7 @@ function addFormLogic() {
             }
         });
     });
+    // *** FIM DA ALTERAÇÃO ***
 
     form.addEventListener("submit", handleSubmit);
 }
@@ -172,6 +177,7 @@ function addFormLogic() {
 
 /**
  * Função principal que lida com o ENVIO do formulário.
+ * (O restante do código é igual, mas está aqui para o copy/paste funcionar)
  */
 async function handleSubmit(event) {
     event.preventDefault();
