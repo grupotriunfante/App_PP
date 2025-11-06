@@ -249,3 +249,94 @@ button:disabled {
     padding: 0.5rem;
     border-radius: 4px;
 }
+/* ==============================================
+   ESTILOS ADICIONAIS DO CHECKLIST
+   (Adicionar ao final de style.css)
+   ============================================== */
+
+/* REQUISITO 2: Estilo do Horário */
+.horario-info {
+    display: inline-block;
+    background-color: #e0f3ff;
+    color: #005a9e;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    font-weight: bold;
+    margin-bottom: 12px;
+}
+
+/* REQUISITO 1: Estilo dos Botões (Sim/Não, C/NC/NA) */
+.botoes-resposta {
+    margin: 12px 0;
+}
+.botoes-resposta label {
+    display: inline-block;
+    padding: 8px 16px;
+    border: 1px solid #bbb;
+    border-radius: 20px;
+    margin-right: 8px;
+    cursor: pointer;
+    background: #fff;
+    transition: all 0.2s ease;
+}
+.botoes-resposta input[type="radio"] {
+    display: none; /* Esconde o radio button feio */
+}
+
+/* Mágica: Oculta o input e estiliza o label */
+.botoes-resposta input[type="radio"]:checked + label {
+    color: white;
+    font-weight: bold;
+}
+
+/* Cores para Sim/Não/NC */
+.botoes-resposta input[value="Não"]:checked + label,
+.botoes-resposta input[value="NC"]:checked + label {
+    background-color: #dc3545; /* Vermelho */
+    border-color: #dc3545;
+}
+.botoes-resposta input[value="Sim"]:checked + label,
+.botoes-resposta input[value="C"]:checked + label {
+    background-color: #28a745; /* Verde */
+    border-color: #28a745;
+}
+.botoes-resposta input[value="NA"]:checked + label {
+    background-color: #6c757d; /* Cinza */
+    border-color: #6c757d;
+}
+
+
+/* REQUISITO 3: Estilo dos Anexos */
+.anexos-container {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    background-color: #fcfcfc;
+}
+.campo-anexo {
+    margin-bottom: 10px;
+}
+.campo-anexo label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 4px;
+    color: #555;
+}
+.campo-anexo input[type="file"] {
+    font-size: 0.9em;
+}
+
+/* Estilo da Observação (Apenas melhoria) */
+.observacao {
+    width: 100%;
+    box-sizing: border-box; 
+    margin-top: 12px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-height: 60px;
+    font-family: inherit;
+    font-size: 1em;
+}
