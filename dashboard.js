@@ -60,9 +60,11 @@ function loadChecklist(area) {
         });
 }
 
+// *** 1. FUNÇÃO MODIFICADA ***
+// Totalmente reescrita para ser dinâmica
 /**
  * Constrói o HTML do formulário de checklist dinamicamente.
- * VERSÃO 4: Separa OBS (só NC) de ANEXOS (C ou NC)
+ * VERSÃO 5: Totalmente dinâmica (Botões, Horários e Anexos)
  */
 function buildChecklistForm(area, itens) {
     const mainContent = document.getElementById("main-content");
@@ -79,24 +81,50 @@ function buildChecklistForm(area, itens) {
             <div id="form-message-area"></div>
     `;
 
-    // *** HTML ALTERADO ***
+    // Itera sobre os itens recebidos da API
     itens.forEach(item => {
+        
+        // REQUISITO 2: Mostrar Horário (se existir)
+        let htmlHorario = '';
+        if (item.horaInicio) {
+            htmlHorario = `<span class="horario-info">⏰ ${item.horaInicio} - ${item.horaFim}</span>`;
+        }
+
+        // REQUISITO 3: Lógica de exibição de ANEXOS
+        let anexoDisplayStyle = 'display: none;'; // Padrão é escondido
+        let anexoShowOnRule = ''; // Padrão é sem regra
+        
+        if (item.evidenciaObrigatoria === 's') {
+            // Regra "s": Sempre visível
+            anexoDisplayStyle = 'display: block;';
+        } else if (item.evidenciaObrigatoria === 'se não') {
+            // Regra "se não": Mostrar se a resposta for "Não"
+            anexoShowOnRule = 'data-show-on="Não"';
+        } else if (item.evidenciaObrigatoria) {
+            // Regra genérica: "NC", "C", "Sim", etc.
+            anexoShowOnRule = `data-show-on="${item.evidenciaObrigatoria}"`;
+        }
+
+        // Lógica de exibição de OBSERVAÇÃO (Sempre para NC)
+        let obsDisplayStyle = 'display: none;';
+        let obsShowOnRule = 'data-show-on="NC"';
+
+
         formHTML += `
             <div class="checklist-item" id="item-${item.id}">
-                <label>${item.descricao} (ID: ${item.id})</label>
+                <label>${item.ordem}. ${item.descricao}</label>
+                ${htmlHorario}
                 
-                <div class="resposta-group">
-                    <input type="radio" name="${item.id}" value="C" required> C
-                    <input type="radio" name="${item.id}" value="NC"> NC
-                    <input type="radio" name="${item.id}" value="NA"> NA
+                <div class="resposta-group botoes-resposta">
+                    ${gerarBotoesResposta(item)}
                 </div>
 
-                <div class="obs-campo" id="obs-campo-${item.id}" style="display:none;">
-                    <textarea name="obs-${item.id}" placeholder="Observação obrigatória"></textarea>
+                <div class="obs-campo" id="obs-campo-${item.id}" style="${obsDisplayStyle}" ${obsShowOnRule}>
+                    <textarea name="obs-${item.id}" placeholder="Observação (obrigatória para NC)"></textarea>
                 </div>
 
-                <div class="anexo-campos" id="anexo-campos-${item.id}" style="display:none;">
-                    ${ buildAnexoFields(item.id, item.anexoCampos) }
+                <div class="anexo-campos" id="anexo-campos-${item.id}" style="${anexoDisplayStyle}" ${anexoShowOnRule}>
+                    ${ buildAnexoFields(item) }
                 </div>
             </div>
         `;
@@ -112,61 +140,103 @@ function buildChecklistForm(area, itens) {
     addFormLogic(); // Adiciona os eventos (lógica) ao formulário
 }
 
+
+// *** 2. FUNÇÃO NOVA ***
+// Helper para criar os botões (Req 1)
+/**
+ * Helper: Gera os botões C/NC/NA ou Sim/Não
+ */
+function gerarBotoesResposta(item) {
+    const id = item.id;
+    let botoesHtml = '';
+
+    // item.tipo agora vem do Apps Script como "Sim/Não" ou "C/NC/NA"
+    if (item.tipo === 'Sim/Não') {
+        botoesHtml = `
+            <input type="radio" name="${id}" id="resp-${id}-s" value="Sim" required>
+            <label for="resp-${id}-s">Sim</label>
+            <input type="radio" name="${id}" id="resp-${id}-n" value="Não">
+            <label for="resp-${id}-n">Não</label>
+        `;
+    } else {
+        // Padrão C/NC/NA
+        botoesHtml = `
+            <input type="radio" name="${id}" value="C" required>
+            <label for="resp-${id}-c">C</label>
+            <input type="radio" name="${id}" id="resp-${id}-nc" value="NC">
+            <label for="resp-${id}-nc">NC</label>
+            <input type="radio" name="${id}" id="resp-${id}-na" value="NA">
+            <label for="resp-${id}-na">NA</label>
+        `;
+        // Corrigindo IDs dos labels que faltavam
+        botoesHtml = botoesHtml.replace('value="C" required>', `value="C" id="resp-${id}-c" required>`);
+    }
+    return botoesHtml;
+}
+
+
+// *** 3. FUNÇÃO MODIFICADA ***
+// Agora recebe o 'item' inteiro e não gera campos 'opcionais'
 /**
  * Helper: Constrói os campos de input[type=file]
  */
-function buildAnexoFields(itemID, anexoCampos) {
+function buildAnexoFields(item) {
     let anexoHTML = "";
     
-    if (anexoCampos) {
-        const labels = anexoCampos.split(';');
-        labels.forEach((label, index) => {
-            anexoHTML += `
-                <label class="anexo-label">${label}:</label>
-                <input type="file" name="anexo-${itemID}-${index}" data-label="${label}" accept="image/*">
-            `;
-        });
-    } else {
-        anexoHTML += `
-            <label class="anexo-label">Anexar evidência (Opcional):</label>
-            <input type="file" name="anexo-${itemID}-0" data-label="Evidencia" accept="image/*">
-        `;
+    // Se a planilha não tiver nada em "CamposAnexo", não gera NADA.
+    if (!item.anexoCampos) {
+        return '';
     }
+    
+    const labels = item.anexoCampos.split(';');
+    labels.forEach((label, index) => {
+        const trimmedLabel = label.trim();
+        if (trimmedLabel) { // Garante que não crie campos vazios
+            anexoHTML += `
+                <label class="anexo-label">${trimmedLabel}:</label>
+                <input type="file" name="anexo-${item.id}-${index}" data-label="${trimmedLabel}" accept="image/*" capture="environment">
+            `;
+        }
+    });
+    
     return anexoHTML;
 }
 
+
+// *** 4. FUNÇÃO MODIFICADA ***
+// Lógica de exibição agora é genérica e baseada em 'data-show-on'
 /**
  * Adiciona a lógica de JavaScript ao formulário (mostrar/esconder campos).
- * VERSÃO 4: Lógica de exibição atualizada
+ * VERSÃO 5: Lógica de exibição genérica
  */
 function addFormLogic() {
     const form = document.getElementById("checklist-form");
+    if (!form) return;
 
     const radios = form.querySelectorAll('input[type="radio"]');
     
-    // *** LÓGICA ALTERADA ***
     radios.forEach(radio => {
         radio.addEventListener("change", (event) => {
-            const itemName = event.target.name; // Ex: "REC-01"
-            const itemValue = event.target.value; // Ex: "C", "NC" ou "NA"
+            const itemValue = event.target.value; // Ex: "C", "NC", "Não"
             
-            // Pega os dois containers separados
-            const obsCampo = document.getElementById(`obs-campo-${itemName}`);
-            const anexoCampos = document.getElementById(`anexo-campos-${itemName}`);
+            // Acha o "item-pai" (o card) onde o botão foi clicado
+            const itemElement = event.target.closest('.checklist-item');
+            if (!itemElement) return;
 
-            // Lógica da Observação: SÓ para NC
-            if (itemValue === "NC") {
-                obsCampo.style.display = "block";
-            } else {
-                obsCampo.style.display = "none";
-            }
-            
-            // Lógica dos Anexos: para C ou NC
-            if (itemValue === "C" || itemValue === "NC") {
-                anexoCampos.style.display = "block";
-            } else {
-                anexoCampos.style.display = "none";
-            }
+            // Encontra TODOS os campos condicionais dentro deste item
+            // (Tanto o .obs-campo quanto o .anexo-campos)
+            const conditionalFields = itemElement.querySelectorAll('[data-show-on]');
+
+            conditionalFields.forEach(field => {
+                // Pega a regra (ex: "NC" ou "Não")
+                const regra = field.getAttribute('data-show-on');
+                
+                if (itemValue === regra) {
+                    field.style.display = 'block'; // Mostra
+                } else {
+                    field.style.display = 'none'; // Esconde
+                }
+            });
         });
     });
     // *** FIM DA ALTERAÇÃO ***
@@ -177,7 +247,7 @@ function addFormLogic() {
 
 /**
  * Função principal que lida com o ENVIO do formulário.
- * (O restante do código é igual, mas está aqui para o copy/paste funcionar)
+ * (NENHUMA ALTERAÇÃO NECESSÁRIA AQUI. JÁ É ROBUSTA.)
  */
 async function handleSubmit(event) {
     event.preventDefault();
@@ -205,32 +275,37 @@ async function handleSubmit(event) {
             }
             
             const resposta = checkedRadio.value;
-            const obs = itemElement.querySelector('textarea').value;
+            const obsTextarea = itemElement.querySelector('textarea');
+            const obs = obsTextarea ? obsTextarea.value : "";
             
             if (resposta === "NC" && !obs) {
                 throw new Error(`O item ${radioName} está NC, mas a observação está vazia.`);
             }
 
             let anexos = [];
-            const fileInputs = itemElement.querySelectorAll('input[type="file"]');
-            
-            fileInputs.forEach(fileInput => {
-                const file = fileInput.files[0];
-                const label = fileInput.getAttribute('data-label');
+            // Coleta anexos apenas se o container de anexos estiver visível
+            const anexoContainer = itemElement.querySelector('.anexo-campos');
+            if (anexoContainer && anexoContainer.style.display === 'block') {
+                const fileInputs = itemElement.querySelectorAll('input[type="file"]');
+                
+                fileInputs.forEach(fileInput => {
+                    const file = fileInput.files[0];
+                    const label = fileInput.getAttribute('data-label');
 
-                if (file) {
-                    fileReadPromises.push(
-                        readFileAsBase64(file).then(base64String => {
-                            anexos.push({
-                                nome: file.name,
-                                tipo: file.type,
-                                dadosBase64: base64String,
-                                label: label
-                            });
-                        })
-                    );
-                }
-            });
+                    if (file) {
+                        fileReadPromises.push(
+                            readFileAsBase64(file).then(base64String => {
+                                anexos.push({
+                                    nome: file.name,
+                                    tipo: file.type,
+                                    dadosBase64: base64String,
+                                    label: label
+                                });
+                            })
+                        );
+                    }
+                });
+            }
 
             respostas.push({
                 id: radioName,
