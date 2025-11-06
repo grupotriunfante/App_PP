@@ -70,6 +70,10 @@ function loadChecklist(area) {
  * Constrói o HTML do formulário de checklist dinamicamente.
  * VERSÃO 5.1: Corrige a lógica de exibição do container de anexo
  */
+/**
+ * Constrói o HTML do formulário de checklist dinamicamente.
+ * VERSÃO 5.2: Corrige a lógica das regras 's' e 'se não'
+ */
 function buildChecklistForm(area, itens) {
     const mainContent = document.getElementById("main-content");
     
@@ -93,26 +97,35 @@ function buildChecklistForm(area, itens) {
             htmlHorario = `<span class="horario-info">⏰ ${item.horaInicio} - ${item.horaFim}</span>`;
         }
 
-        // --- LÓGICA DE ANEXOS CORRIGIDA (Bug A) ---
+        // --- LÓGICA DE ANEXOS CORRIGIDA (V5.2) ---
         let anexoDisplayStyle = 'display: none;'; // Padrão é escondido
         let anexoShowOnRule = ''; 
         let hasAnexoFields = !!item.anexoCampos;      // true se CamposAnexo estiver preenchido
-        let hasAnexoRule = !!item.evidenciaObrigatoria; // true se Evidencia estiver preenchida
+        let rule = item.evidenciaObrigatoria;     // 's', 'se não', 'NC', etc.
 
-        if (hasAnexoRule) {
+        if (rule) {
             // CASO 1: Existe uma regra na coluna "Evidencia"
-            if (item.evidenciaObrigatoria === 's') {
-                anexoDisplayStyle = 'display: block;'; // Regra 's', mostra sempre
-            } else if (item.evidenciaObrigatoria === 'se não') {
-                anexoShowOnRule = 'data-show-on="Não"'; // Regra 'se não'
+            if (rule === 's') {
+                anexoShowOnRule = 'data-show-on="Sim"'; // CORRIGIDO: Mostrar se for "Sim"
+            
+            } else if (rule === 'se não') {
+                // CORRIGIDO: Regra 'se não' depende do tipo de botão
+                if (item.tipo === 'Sim/Não') {
+                    anexoShowOnRule = 'data-show-on="Não"';
+                } else {
+                    anexoShowOnRule = 'data-show-on="NC"'; // Para C/NC/NA
+                }
+            
             } else {
-                anexoShowOnRule = `data-show-on="${item.evidenciaObrigatoria}"`; // Outra regra (ex: 'NC')
+                 // Outra regra (ex: você escreveu 'NC' direto na planilha)
+                anexoShowOnRule = `data-show-on="${rule}"`;
             }
+
         } else if (hasAnexoFields) {
             // CASO 2: NÃO existe regra, mas existem campos (ex: EXP-001)
-            anexoDisplayStyle = 'display: block;'; // Mostra sempre
+            anexoDisplayStyle = 'display: block;'; // Mostra sempre (Correto)
         }
-        // CASO 3: Sem regra e sem campos -> Fica 'display: none' (correto)
+        // CASO 3: Sem regra e sem campos -> Fica 'display: none' (Correto)
         // --- FIM DA CORREÇÃO ---
 
 
