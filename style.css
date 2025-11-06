@@ -340,3 +340,26 @@ button:disabled {
     font-family: inherit;
     font-size: 1em;
 }
+
+/* ==============================================
+   === NOVOS ESTILOS PARA AS IMAGENS ===
+   ============================================== */
+
+.login-logo {
+    max-width: 150px; /* Ajuste o tamanho da logo */
+    height: auto;
+    display: block;
+    margin: 0 auto 1.5rem auto; /* Centraliza e dá espaço abaixo do H2 */
+}
+
+.welcome-message {
+    text-align: center; /* Centraliza o h1, p, e a imagem */
+    padding: 2rem;
+}
+
+.dashboard-welcome-image {
+    max-width: 400px; /* Define um tamanho máximo para a imagem */
+    width: 90%; /* Torna responsiva */
+    height: auto;
+    margin-top: 2rem; /* Espaço entre o texto e a imagem */
+}
