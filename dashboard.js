@@ -66,6 +66,10 @@ function loadChecklist(area) {
  * Constrói o HTML do formulário de checklist dinamicamente.
  * VERSÃO 5: Totalmente dinâmica (Botões, Horários e Anexos)
  */
+/**
+ * Constrói o HTML do formulário de checklist dinamicamente.
+ * VERSÃO 5.1: Corrige a lógica de exibição do container de anexo
+ */
 function buildChecklistForm(area, itens) {
     const mainContent = document.getElementById("main-content");
     
@@ -81,31 +85,38 @@ function buildChecklistForm(area, itens) {
             <div id="form-message-area"></div>
     `;
 
-    // Itera sobre os itens recebidos da API
     itens.forEach(item => {
         
-        // REQUISITO 2: Mostrar Horário (se existir)
+        // REQUISITO 2: Horário (Sem alteração)
         let htmlHorario = '';
         if (item.horaInicio) {
             htmlHorario = `<span class="horario-info">⏰ ${item.horaInicio} - ${item.horaFim}</span>`;
         }
 
-        // REQUISITO 3: Lógica de exibição de ANEXOS
+        // --- LÓGICA DE ANEXOS CORRIGIDA (Bug A) ---
         let anexoDisplayStyle = 'display: none;'; // Padrão é escondido
-        let anexoShowOnRule = ''; // Padrão é sem regra
-        
-        if (item.evidenciaObrigatoria === 's') {
-            // Regra "s": Sempre visível
-            anexoDisplayStyle = 'display: block;';
-        } else if (item.evidenciaObrigatoria === 'se não') {
-            // Regra "se não": Mostrar se a resposta for "Não"
-            anexoShowOnRule = 'data-show-on="Não"';
-        } else if (item.evidenciaObrigatoria) {
-            // Regra genérica: "NC", "C", "Sim", etc.
-            anexoShowOnRule = `data-show-on="${item.evidenciaObrigatoria}"`;
-        }
+        let anexoShowOnRule = ''; 
+        let hasAnexoFields = !!item.anexoCampos;      // true se CamposAnexo estiver preenchido
+        let hasAnexoRule = !!item.evidenciaObrigatoria; // true se Evidencia estiver preenchida
 
-        // Lógica de exibição de OBSERVAÇÃO (Sempre para NC)
+        if (hasAnexoRule) {
+            // CASO 1: Existe uma regra na coluna "Evidencia"
+            if (item.evidenciaObrigatoria === 's') {
+                anexoDisplayStyle = 'display: block;'; // Regra 's', mostra sempre
+            } else if (item.evidenciaObrigatoria === 'se não') {
+                anexoShowOnRule = 'data-show-on="Não"'; // Regra 'se não'
+            } else {
+                anexoShowOnRule = `data-show-on="${item.evidenciaObrigatoria}"`; // Outra regra (ex: 'NC')
+            }
+        } else if (hasAnexoFields) {
+            // CASO 2: NÃO existe regra, mas existem campos (ex: EXP-001)
+            anexoDisplayStyle = 'display: block;'; // Mostra sempre
+        }
+        // CASO 3: Sem regra e sem campos -> Fica 'display: none' (correto)
+        // --- FIM DA CORREÇÃO ---
+
+
+        // Lógica de Observação (sempre 'NC')
         let obsDisplayStyle = 'display: none;';
         let obsShowOnRule = 'data-show-on="NC"';
 
@@ -129,7 +140,6 @@ function buildChecklistForm(area, itens) {
             </div>
         `;
     });
-    // *** FIM DA ALTERAÇÃO ***
 
     formHTML += `
             <button type="submit" id="submit-checklist">Enviar Auditoria</button>
@@ -137,9 +147,8 @@ function buildChecklistForm(area, itens) {
     `;
 
     mainContent.innerHTML = formHTML;
-    addFormLogic(); // Adiciona os eventos (lógica) ao formulário
+    addFormLogic(); 
 }
-
 
 // *** 2. FUNÇÃO NOVA ***
 // Helper para criar os botões (Req 1)
@@ -180,25 +189,34 @@ function gerarBotoesResposta(item) {
 /**
  * Helper: Constrói os campos de input[type=file]
  */
+/**
+ * Helper: Constrói os campos de input[type=file]
+ * VERSÃO 5.1: Corrige a lógica de conteúdo (Bug B)
+ */
 function buildAnexoFields(item) {
     let anexoHTML = "";
     
-    // Se a planilha não tiver nada em "CamposAnexo", não gera NADA.
-    if (!item.anexoCampos) {
-        return '';
+    if (item.anexoCampos) {
+        // CASO 1: A planilha define os labels (ex: "Foto NF;Foto Produto")
+        const labels = item.anexoCampos.split(';');
+        labels.forEach((label, index) => {
+            const trimmedLabel = label.trim();
+            if (trimmedLabel) { 
+                anexoHTML += `
+                    <label class="anexo-label">${trimmedLabel}:</label>
+                    <input type="file" name="anexo-${item.id}-${index}" data-label="${trimmedLabel}" accept="image/*" capture="environment">
+                `;
+            }
+        });
+    } else if (item.evidenciaObrigatoria) {
+        // CASO 2: A planilha NÃO define labels, mas EXIGE evidência (ex: CF-001, RD-006)
+        // Criamos um campo genérico
+        anexoHTML += `
+            <label class="anexo-label">Anexar Evidência:</label>
+            <input type="file" name="anexo-${item.id}-0" data-label="Evidencia" accept="image/*" capture="environment">
+        `;
     }
-    
-    const labels = item.anexoCampos.split(';');
-    labels.forEach((label, index) => {
-        const trimmedLabel = label.trim();
-        if (trimmedLabel) { // Garante que não crie campos vazios
-            anexoHTML += `
-                <label class="anexo-label">${trimmedLabel}:</label>
-                <input type="file" name="anexo-${item.id}-${index}" data-label="${trimmedLabel}" accept="image/*" capture="environment">
-            `;
-        }
-    });
-    
+    // CASO 3: Sem anexoCampos e sem evidenciaObrigatoria -> retorna "" (correto)
     return anexoHTML;
 }
 
